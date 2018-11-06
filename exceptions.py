@@ -6,3 +6,12 @@ class DuplicateServiceNameError(BaseAsyncServicesException):
 
 class InvalidQueueMessage(BaseAsyncServicesException):
     pass
+
+class ReadTimeoutError(BaseAsyncServicesException):
+    pass
+
+class ConnectionClosed(BaseAsyncServicesException):
+    pass
+
+class SendFailed(BaseAsyncServicesException):
+    pass
