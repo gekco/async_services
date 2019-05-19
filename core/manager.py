@@ -1,114 +1,138 @@
 import asyncio
+import threading
+import uuid
 
-from asgiref.sync import sync_to_async
+import logging
+from concurrent.futures import CancelledError
 
-from base.clients import BaseClient
 from common.utils import log_exception
+from core import ManagerNotInitialized
+from core.exceptions import CoroMissingException, InvalidStateException
 
-class ServiceContext:
-    client = None
-    handler_class = None
-    handler = None
-    name = ""
 
-    def __init__(self, client, handler_class, name, handler_kwargs=None):
-        self.client = client
-        self.handler_class = handler_class
-        if not handler_kwargs:
-            handler_kwargs = {}
-        self.handler = self.handler_class(**handler_kwargs)
-        self.name = name
-        self.handler.context = {"client": client, "name" :name}
+class Commands:
+    Request = 0
+    Response = 1
 
-    def on_message(self, message):
-        self.handler.handle(message)
+
+class CoroStatus:
+    Queued = 0
+    Completed = 1
+    Failed = 2
+    Cancelled = 3
+    Timeout = 4
+
 
 class ServiceManager:
     """
-    class to manage connection of webserver for various 3rd party services
-    (Trading Engine MarketData Server Etc)
+    class to manage connection
     """
-    active_services = {}
-    active_coros = {}
-    master_queue = asyncio.Queue()
-    queue_listen_coro = None
+    active_tasks = {}
+    coros_result = {}
+    master_queue = None
+    queue_listen_task = None
+    close = False
+    event_loop = None
+    is_initialized = False
 
-    def __init__(self, receive_timeout=0.1):
-        # initialize event loop
+    def run(self):
         try:
             self.event_loop = asyncio.get_event_loop()
         except Exception as e:
             log_exception(e)
             self.event_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.event_loop)
+        self.master_queue = asyncio.Queue()
+        self.queue_listen_task = asyncio.Task(self.receive_queue_coro())
+        self.is_initialized = True
+        try:
+            self.get_event_loop().run_until_complete(self.queue_listen_task)
+        except CancelledError:
+            logging.debug("Closing the Thread.")
 
-        # initialize listening to the MAJOR queue
-        asyncio.ensure_future(self.receive_queue_coro())
-        self.receive_timeout= receive_timeout
-
-    def initialise_services(self, services):
-        """
-        initialize trading/mktdata services from settings
-        :return: None
-        """
-
-        for service_name, service_info in services.items():
-            self.add_service(service_name, service_info["client"], service_info["handler"] )
-
-    def add_service(self, name, client, service_handler):
-        """
-        add client
-        :return:
-        """
-        # -- checks
-        assert name in self.active_services.keys(), "Service Already Exists With Name {0}".format(name)
-        assert issubclass(type(client), BaseClient), "Service {0} not a subclass of BaseService".format(name)
-
-        service_context =  ServiceContext(client, service_handler)
-        self.active_services[name] = service_context
-        #if to initialize before receive
-
-        if asyncio.iscoroutinefunction(client.receive):
-            coro = client.recieve()
-            is_blocking = False
-        else:
-            coro = sync_to_async(client.recieve)
-            is_blocking = True
-
-        asyncio.ensure_future(self.receive_client(coro, name, is_blocking), loop=self.event_loop)
-        self.active_coros[name] = coro
-
-    def remove_service(self, name):
-        """
-        stop and remove client
-        :return:
-        """
-        self.active_coros[name].cancel()
-
-    def get_client(self, name):
-        """
-        get client from name
-        :return:
-        """
-        if name not in self.active_services.keys():
-            return Exception("Invalid Service Name")
-        return self.active_coros[name].client
+    def get_event_loop(self):
+        if not self.event_loop:
+            raise ManagerNotInitialized("Manager is not Initialized Yet.")
+        return self.event_loop
 
     async def receive_queue_coro(self):
-        self.queue_listen_coro = self.master_queue.get()
-        name, message = asyncio.wait_for(self.queue_listen_coro, loop = self.event_loop)
-        self.active_services[name].on_message(message)
-
-    async def receive_client(self, coro, name, is_blocking=False):
         while True:
-            if is_blocking:
-                message = asyncio.wait_for(coro, timeout=self.receive_timeout)
+            coro_id, coro, callback, timeout = await self.master_queue.get()
+            asyncio.ensure_future(self.start_coro(coro_id, coro, callback, timeout))
+
+    async def start_coro(self, coro_id, coro, callback, timeout):
+        status = None
+        try:
+            task = asyncio.Task(coro)
+            self.active_tasks[coro_id] = task
+            response = await asyncio.wait_for(task, timeout, loop=self.event_loop)
+            status = CoroStatus.Completed
+        except asyncio.TimeoutError as e:
+            self.coros_result[coro_id][0] = CoroStatus.Timeout
+            response = None
+            status = CoroStatus.Timeout
+
+        self.active_tasks[coro_id] = False
+        if callback and status == CoroStatus.Completed:
+            try:
+                callback(response)
+            except Exception:
+                self.coros_result[coro_id] = [CoroStatus.Failed, response]
+        self.coros_result[coro_id] = [status, response]
+
+    def schedule(self, coro, block=False, callback=None, timeout=None):
+        coro_id = str(uuid.uuid4())
+        self.get_event_loop().call_soon_threadsafe(self.master_queue.put_nowait, [coro_id, coro, callback, timeout])
+        self.coros_result[coro_id] = [CoroStatus.Queued, None]
+        self.active_tasks[coro_id] = False
+        if block:
+            status, result = self.check_result(coro_id)
+            while status == CoroStatus.Queued:
+                status, result = self.check_result(coro_id)
+            return status, result
+        return coro_id
+
+    def cancel_coro(self, coro_id, block=True, raise_exception=True):
+        try:
+            if self.coros_result[coro_id][0] == CoroStatus.Queued:
+
+                task = self.active_tasks[coro_id]
+                if not task:
+                    if block:
+                        while not task:
+                            task = self.active_tasks[coro_id]
+                if task:
+                    task.cancel()
+                self.active_tasks[coro_id] = False
+                self.coros_result[coro_id][0] = CoroStatus.Cancelled
             else:
-                message = await coro
-            await self.master_queue.put((name, message))
+                if raise_exception:
+                    raise InvalidStateException("Cannot Cancel a Coroutine."
+                                             "Coruotine is Already Finished.")
+        except KeyError:
+            raise CoroMissingException("Coroutine Id {}"
+                                       " is not Active".format(coro_id))
+
+    def check_result(self, coro_id):
+        try:
+            status, response = self.coros_result.get(coro_id)
+            if status != CoroStatus.Queued:
+                self.remove_coro(coro_id)
+            return status, response
+        except KeyError:
+            raise CoroMissingException("Coroutine Id {}"
+                                       " is not Active".format(coro_id))
+
+    def stop(self):
+        if not self.master_queue.empty():
+            logging.warning("Unread Messages Are Present")
+        for coro_id, coro in self.active_tasks.items():
+            self.cancel_coro(coro_id, raise_exception=False)
+        self.queue_listen_task.cancel()
+
+    def remove_coro(self, coro_id):
+        self.active_tasks.pop(coro_id, None)
+        self.coros_result.pop(coro_id, None)
 
     def __del__(self):
-        if not self.master_queue.empty():
-            print("******WARNING********", "Unread Messages Are Present")
-        self.queue_listen_coro.cancel()
-
+        self.stop()
