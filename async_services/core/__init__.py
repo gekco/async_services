@@ -14,6 +14,7 @@ def run_manager(block=False):
         if block:
             service_manager.run()
         else:
+            print("STARTING A NEW THREAD")
             threading.Thread(target=service_manager.run).start()
             while not service_manager.is_initialized:
                 pass

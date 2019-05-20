@@ -102,7 +102,7 @@ class ServiceManager:
                         while not task:
                             task = self.active_tasks[coro_id]
                 if task:
-                    task.cancel()
+                    self.event_loop.call_soon_threadsafe(task.cancel)
                 self.active_tasks[coro_id] = False
                 self.coros_result[coro_id][0] = CoroStatus.Cancelled
             else:
@@ -129,7 +129,7 @@ class ServiceManager:
             logging.warning("Unread Messages Are Present")
         for coro_id, coro in self.active_tasks.items():
             self.cancel_coro(coro_id, raise_exception=False)
-        self.queue_listen_task.cancel()
+        self.event_loop.call_soon_threadsafe(self.queue_listen_task.cancel)
 
     def remove_coro(self, coro_id):
         self.active_tasks.pop(coro_id, None)
