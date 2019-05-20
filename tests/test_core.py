@@ -35,7 +35,6 @@ def test_unblocked_async_coro():
 def test_callback():
     def cb(result_coro):
         global var
-        print("inside callback", datetime.now(), var)
         var = result_coro.split(" ")[0]
 
     coro_id = run_coro(coroutine(), callback=cb)

@@ -134,6 +134,3 @@ class ServiceManager:
     def remove_coro(self, coro_id):
         self.active_tasks.pop(coro_id, None)
         self.coros_result.pop(coro_id, None)
-
-    def __del__(self):
-        self.stop()
