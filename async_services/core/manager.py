@@ -4,9 +4,9 @@ import uuid
 import logging
 from concurrent.futures import CancelledError
 
-from async_services.common.utils import log_exception
 from async_services.core.exceptions import ManagerNotInitialized
-from async_services.core.exceptions import CoroMissingException, InvalidStateException
+from async_services.core.exceptions import CoroMissingException,\
+    InvalidStateException
 
 
 class Commands:
@@ -38,7 +38,6 @@ class ServiceManager:
         try:
             self.event_loop = asyncio.get_event_loop()
         except Exception as e:
-            log_exception(e)
             self.event_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.event_loop)
         self.master_queue = asyncio.Queue()

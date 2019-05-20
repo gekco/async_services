@@ -2,7 +2,8 @@ import asyncio
 from datetime import datetime
 
 
-from async_services.core import run_coro, check_result, stop_manager, cancel_coro
+from async_services.core import run_coro, check_result,\
+    stop_manager, cancel_coro
 from async_services.core.manager import CoroStatus
 
 
