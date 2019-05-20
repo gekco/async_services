@@ -1,7 +1,7 @@
 import threading
 
-from core.exceptions import ManagerNotInitialized
-from core.manager import ServiceManager
+from async_services.core.exceptions import ManagerNotInitialized
+from async_services.core.manager import ServiceManager
 
 
 service_manager = None
@@ -24,15 +24,18 @@ def run_coro(coro, block=False, callback=None, timeout=None):
         run_manager()
     return service_manager.schedule(coro, block, callback, timeout)
 
+
 def check_result(coro_id):
     if service_manager:
         return service_manager.check_result(coro_id)
     raise ManagerNotInitialized("Async Services Manager Not Initialized.")
 
+
 def cancel_coro(coro_id):
     if service_manager:
         return service_manager.cancel_coro(coro_id)
     raise ManagerNotInitialized("Async Services Manager Not Initialized.")
+
 
 def stop_manager():
     global service_manager

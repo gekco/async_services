@@ -1,13 +1,12 @@
 import asyncio
-import threading
 import uuid
 
 import logging
 from concurrent.futures import CancelledError
 
-from common.utils import log_exception
-from core import ManagerNotInitialized
-from core.exceptions import CoroMissingException, InvalidStateException
+from async_services.common.utils import log_exception
+from async_services.core.exceptions import ManagerNotInitialized
+from async_services.core.exceptions import CoroMissingException, InvalidStateException
 
 
 class Commands:
@@ -58,16 +57,17 @@ class ServiceManager:
     async def receive_queue_coro(self):
         while True:
             coro_id, coro, callback, timeout = await self.master_queue.get()
-            asyncio.ensure_future(self.start_coro(coro_id, coro, callback, timeout))
+            asyncio.ensure_future(
+                self.start_coro(coro_id, coro, callback, timeout))
 
     async def start_coro(self, coro_id, coro, callback, timeout):
-        status = None
         try:
             task = asyncio.Task(coro)
             self.active_tasks[coro_id] = task
-            response = await asyncio.wait_for(task, timeout, loop=self.event_loop)
+            response = await asyncio.wait_for(task, timeout,
+                                              loop=self.event_loop)
             status = CoroStatus.Completed
-        except asyncio.TimeoutError as e:
+        except asyncio.TimeoutError:
             self.coros_result[coro_id][0] = CoroStatus.Timeout
             response = None
             status = CoroStatus.Timeout
@@ -82,7 +82,8 @@ class ServiceManager:
 
     def schedule(self, coro, block=False, callback=None, timeout=None):
         coro_id = str(uuid.uuid4())
-        self.get_event_loop().call_soon_threadsafe(self.master_queue.put_nowait, [coro_id, coro, callback, timeout])
+        self.get_event_loop().call_soon_threadsafe(
+            self.master_queue.put_nowait, [coro_id, coro, callback, timeout])
         self.coros_result[coro_id] = [CoroStatus.Queued, None]
         self.active_tasks[coro_id] = False
         if block:
@@ -107,8 +108,9 @@ class ServiceManager:
                 self.coros_result[coro_id][0] = CoroStatus.Cancelled
             else:
                 if raise_exception:
-                    raise InvalidStateException("Cannot Cancel a Coroutine."
-                                             "Coruotine is Already Finished.")
+                    raise InvalidStateException(
+                        "Cannot Cancel a Coroutine."
+                        "Coruotine is Already Finished.")
         except KeyError:
             raise CoroMissingException("Coroutine Id {}"
                                        " is not Active".format(coro_id))
