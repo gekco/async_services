@@ -54,9 +54,9 @@ assert result[1] == "Hello World"
 stop_manager()
 
 ```
-##Output
-Result will be a tuple consisting of two values (<status>, <result>)
-<status> will be a integer between 0 and 5 and it defines the state of the coruotine
+## Output
+Result will be a tuple consisting of two values (status, result)
+status will be a integer between 0 and 5 and it defines the state of the coruotine
 
 ```
 (1, 'Hello World')
