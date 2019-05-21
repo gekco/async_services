@@ -19,10 +19,6 @@ pip install -r requirements.txt
 pip install -U .
 ```
 
-##Otherwise
-
-
-
 ## Running the tests
 
 You can run the tests with the following command
@@ -57,10 +53,6 @@ assert result[1] == "Hello World"
 stop_manager()
 
 ```
-## Contributing
-
-Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426)
-for details on our code of conduct, and the process for submitting pull requests to us.
 
 ## Authors
 
