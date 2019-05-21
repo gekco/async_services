@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 import uuid
 
 import logging
@@ -20,6 +21,7 @@ class CoroStatus:
     Failed = 2
     Cancelled = 3
     Timeout = 4
+    CoroutineException = 5
 
 
 class ServiceManager:
@@ -70,12 +72,18 @@ class ServiceManager:
             self.coros_result[coro_id][0] = CoroStatus.Timeout
             response = None
             status = CoroStatus.Timeout
+        except Exception as e:
+            traceback.print_tb(e.__traceback__)
+            self.coros_result[coro_id][0] = CoroStatus.CoroutineException
+            response = None
+            status = CoroStatus.CoroutineException
 
         self.active_tasks[coro_id] = False
-        if callback and status == CoroStatus.Completed:
+        if callback:
             try:
-                callback(response)
-            except Exception:
+                callback(status, response)
+            except Exception as e:
+                traceback.print_tb(e.__traceback__)
                 self.coros_result[coro_id] = [CoroStatus.Failed, response]
         self.coros_result[coro_id] = [status, response]
 

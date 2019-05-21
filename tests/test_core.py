@@ -1,14 +1,22 @@
 import asyncio
 from datetime import datetime
 
+import pytest
 
-from async_services.core import run_coro, check_result,\
-    stop_manager, cancel_coro
+from async_services.core import run_coro, check_result, \
+    stop_manager, cancel_coro, run_manager
 from async_services.core.manager import CoroStatus
 
 
 var = None
+callback_count = 3
 
+
+@pytest.fixture(autouse=True)
+def manager_start_stope():
+    run_manager()
+    yield
+    stop_manager()
 
 async def coroutine(seconds=1, raise_exception=False):
     await asyncio.sleep(seconds)
@@ -33,16 +41,22 @@ def test_unblocked_async_coro():
 
 
 def test_callback():
-    def cb(result_coro):
-        global var
-        var = result_coro.split(" ")[0]
+    def cb(result_flag, result_coro):
+        global var, callback_count
+        if (result_flag == CoroStatus.Completed):
+            if not var:
+                var = result_coro
+            var = var[callback_count:]
+            callback_count -= 1
+            if callback_count:
+                run_coro(coroutine(), callback=cb)
 
-    coro_id = run_coro(coroutine(), callback=cb)
-    result_flag, result = CoroStatus.Queued, None
-    while result_flag == CoroStatus.Queued:
-        result_flag, result = check_result(coro_id)
-    assert var == "Hello"
-    assert result_flag == CoroStatus.Completed
+
+    run_coro(coroutine(), callback=cb)
+
+    while callback_count:
+        pass
+    assert var == "World"
 
 
 def test_cancel_coroutine():
@@ -61,10 +75,6 @@ def test_timeout_coro():
     assert result is None
     assert result_flag == CoroStatus.Timeout
 
-
-def test_stop_manager():
-    run_coro(coroutine(5))
-    stop_manager()
-    test_blocked_coro()
-    test_callback()
-    stop_manager()
+def test_coro_raise_exception():
+    result = run_coro(coroutine(raise_exception=True), block=True)
+    assert result[0] == CoroStatus.CoroutineException
