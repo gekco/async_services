@@ -5,6 +5,7 @@ import pytest
 
 from async_services.core import run_coro, check_result, \
     stop_manager, cancel_coro, run_manager
+from async_services.core.exceptions import DemoException
 from async_services.core.manager import CoroStatus
 
 
@@ -18,10 +19,11 @@ def manager_start_stope():
     yield
     stop_manager()
 
+
 async def coroutine(seconds=1, raise_exception=False):
     await asyncio.sleep(seconds)
     if raise_exception:
-        raise Exception("Sample Exception")
+        raise DemoException("Sample Exception")
     return "Hello World"
 
 
@@ -51,7 +53,6 @@ def test_callback():
             if callback_count:
                 run_coro(coroutine(), callback=cb)
 
-
     run_coro(coroutine(), callback=cb)
 
     while callback_count:
@@ -74,6 +75,7 @@ def test_timeout_coro():
         result_flag, result = check_result(coro_id)
     assert result is None
     assert result_flag == CoroStatus.Timeout
+
 
 def test_coro_raise_exception():
     result = run_coro(coroutine(raise_exception=True), block=True)
