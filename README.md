@@ -1,5 +1,7 @@
 # Async Services
 
+[![Build Status](https://travis-ci.org/gekco/async_services.svg?branch=master)](https://travis-ci.org/gekco/async_services)
+
 Run fast asynchronous code from a synchronous code. Async Services provide a synchronous wrapper to run
 third party asynchronous code or any coroutine for that matter in a synchronous way from a synchronous code.
 
