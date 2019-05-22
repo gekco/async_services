@@ -1,0 +1,21 @@
+dist: xenial
+language: python
+python:
+- '3.3'
+- '3.4'
+- '3.5'
+- '3.6'
+- '3.7'
+install:
+- pip install -r requirements.txt
+- pip install -U .
+script:
+- pytest
+- pycodestyle .
+deploy:
+  provider: pypi
+  user: gekco
+  password:
+    secure: ToIdNXub/jKRjt3AQEuTPdHYlUamL2ApPDF/zl+m/fJvD3qvSAVHTUcOI7+hpZFSvwihdW+0u4ZZZdtvXV9+SHG0mdn/HAHqtcuSmZ52abcmFuLW3jcMHFZWDbdQYWmLCO3zoka+acyGNep/I7hH5f+Z8VKFUBC2wlyxTKzGy1stOAUcQOo+/5DHzpvQoM1uNOdUDag/5FB2SLOq9Te7WxTsgLD7i23HXNuddNHrmnF8uH0NF4N/IMGoZlgwmYSMZaI8M0ddqIOIuBjwhOWsD3sV8o32egwMeybc5Ks03j8bTVtM01y2BjUWGdxseSiLj6ca2+oxkOVuM5vDQrswNsiQ1CsikDkFy9CTt/JS/eMpD8RfyzmoAcGaQDKBQYqOCf8DSlds83qBFEfLyvByfmhEqpF4dEzwQHLZTE2NIrvU8rj95WQuKU8pbqmsyqXe62EsV6fRzK7TtEOQ8DfTSm3JMYd86F+5gaKJzBzrXdhfTqUpVZVMn8pNnl7IHIEXV144WiXWaIQVV7Nt8j6Bh7Xr8D4PeeYZo3/AvTmxudrpwyHfWCqn4PrlUFrqqqq2RJHd5w47tpnOoq8fNdKUgbZ9EPYAvxWmCwtweEwCe3Rk5fHM+saFMbBJg52E8ukPfJhZVpcp57RJYN1qNKck24mtbMqRl3HJSUNPYllVLX8=
+  on:
+    tags: true
